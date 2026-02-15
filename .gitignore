@@ -1,0 +1,15 @@
+# Folder sampah yang berat (bisa di-install ulang)
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# File rahasia (password database)
+.env
+
+# File sistem Mac/Windows yang gak penting
+.DS_Store
+Thumbs.db
+
+# Folder hasil build (nanti kita build ulang di server)
+dist/
+frontend/dist/
