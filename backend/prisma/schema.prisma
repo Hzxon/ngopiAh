@@ -14,8 +14,9 @@ datasource db {
 }
 
 model Product {
-    id Int @id @default(autoincrement())
-    name String
-    price Int
-    createdAt DateTime @default(now())
-  }
+  id        Int      @id @default(autoincrement())
+  name      String
+  price     Int
+  image     String?  // <-- Tambah ini! Tanda tanya (?) artinya boleh kosong
+  createdAt DateTime @default(now())
+}
