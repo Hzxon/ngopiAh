@@ -1,83 +1,63 @@
+require('dotenv').config();
 const express = require('express');
+
 const cors = require('cors');
-const path = require('path');
-const { PrismaClient } = require('@prisma/client'); // Panggil Si Kepala Gudang
-const multer = require('multer');
-const cloudinary = require('cloudinary').v2;
-const upload = multer({ storage: multer.memoryStorage() });
+const cookieParser = require('cookie-parser');
+
+const morgan = require('morgan');
+
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const hpp = require('hpp');
+const sanitizer = require('perfect-express-sanitizer');
+
+const authRoutes = require('./routes/authRoutes');
+const productRoutes = require('./routes/productRoutes');
+
 
 const app = express();
-const prisma = new PrismaClient(); // Aktifkan Prisma
-const port = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 
-cloudinary.config({
-  cloud_name: 'dsjpm0pzj',
-  api_key: '873237874988831',
-  api_secret: '5a8gHfRpRQoRlLxNw8b0wKui5Ks'
-});
+// 1. SECURITY HEADERS & LOGGING
+app.use(helmet());
+app.use(morgan('dev'));
 
-app.use(cors());
+// 2. RATE LIMITER 
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: "Terlalu banyak request dari IP ini, coba lagi nanti ya!",
+  standardHeaders: true,
+  legacyHeaders: false
+})
+app.use(limiter);
+
+// 3. PARSING BODY & CORS
+app.use(cors({
+  origin: 'http://localhost:5173',
+  credentials: true
+}))
 app.use(express.json());
+app.use(cookieParser());
 
-app.use(express.static(path.join(__dirname, 'frontend', 'dist')));
 
-// --- API ROUTES ---
+// 4. SANITIZATION
+app.use(sanitizer.clean({
+  xss: true,
+  noSql: true,
+  sql: true
+}))
 
-// 1. GET: Ambil semua produk dari Postgres
-app.get('/api/products', async (req, res) => {
-  try {
-    const products = await prisma.product.findMany();
-    res.json(products);
-  } catch (error) {
-    res.status(500).json({ error: "Gagal mengambil data" });
-  }
-});
+// 5. PARAMETER POLLUTION
+app.use(hpp());
 
-// 2. POST: Tambah produk baru ke Postgres
-app.post('/api/products', async (req, res) => {
-  const { name, price, image } = req.body;
 
-  try {
-    const newProduct = await prisma.product.create({
-      data: {
-        name: name,
-        price: parseInt(price), // Ubah teks jadi angka biar Postgres gak marah
-        image: image,
-      },
-    });
-    res.status(201).json(newProduct);
-  } catch (error) {
-    console.error(error);
-    res.status(400).json({ error: "Gagal menyimpan produk" });
-  }
-});
+// 6. ROUTES 
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/products', productRoutes);
 
-// POST: Upload Gambar ke Cloudinary
-app.post('/api/upload', upload.single('image'), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: 'Tidak ada file' });
 
-    // Konversi buffer file ke base64 agar bisa diupload
-    const b64 = Buffer.from(req.file.buffer).toString('base64');
-    const dataURI = 'data:' + req.file.mimetype + ';base64,' + b64;
 
-    // Upload ke Cloudinary
-    const result = await cloudinary.uploader.upload(dataURI, {
-      folder: 'toko-online-uploads', // Nama folder di Cloudinary
-    });
-
-    // Kirim balik URL gambar ke Frontend
-    res.json({ imageUrl: result.secure_url });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Gagal upload gambar' });
-  }
-});
-
-app.get(/.*/, (req, res) => {
-  res.sendFile(path.join(__dirname, 'frontend', 'dist', 'index.html'));
-});
-
-app.listen(port, () => {
-  console.log(`🚀 Server Postgres jalan di http://localhost:${port}`);
-});
+app.listen(PORT, () => {
+  console.log(`Server jalan di http://localhost:${PORT}`)
+})

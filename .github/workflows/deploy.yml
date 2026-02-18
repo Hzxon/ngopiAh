@@ -1,0 +1,60 @@
+name: 🚀 Deploy ngopiAh ke VPS
+
+# Kapan robot ini jalan?
+# Setiap kali kamu push ke branch "main"
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Deploy ke VPS Azure
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Robot SSH ke VPS kamu, lalu jalankan semua perintah deploy
+      - name: 🔗 SSH ke VPS & Deploy
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          script: |
+            echo "========================================="
+            echo "🚀 Mulai deploy ngopiAh..."
+            echo "========================================="
+
+            # 1. Masuk ke folder project di VPS
+            cd ~/ngopiAh/backend
+
+            # 2. Tarik kode terbaru dari GitHub
+            echo "📥 Git pull..."
+            git pull origin main
+
+            # 3. Install dependencies backend
+            echo "📦 Install backend dependencies..."
+            npm install --production
+
+            # 4. Generate Prisma Client
+            echo "🔧 Generate Prisma Client..."
+            npx prisma generate
+
+            # 5. Jalankan migrasi database (kalau ada perubahan schema)
+            echo "🗃️ Jalankan migrasi database..."
+            npx prisma migrate deploy
+
+            # 6. Masuk ke frontend & install + build
+            echo "🎨 Build frontend..."
+            cd frontend
+            npm install
+            npm run build
+            cd ..
+
+            # 7. Restart aplikasi pakai PM2
+            echo "🔄 Restart server..."
+            pm2 restart ngopiAh || pm2 start server.js --name ngopiAh
+
+            echo "========================================="
+            echo "✅ Deploy selesai!"
+            echo "========================================="
